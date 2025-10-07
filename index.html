@@ -2,34 +2,25 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8"/>
-<title>AI 캐릭터 포즈 생성기 v9.5</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AI 캐릭터 포즈 생성기 v10.9 — 점 눈 + 프로 투시</title>
 <style>
-body{
-  margin:0;
-  background:#fdfdfd;
-  color:#222;
-  font-family:"Noto Sans KR",sans-serif;
-  text-align:center;
-}
-canvas{
-  width:512px;height:512px;
-  background:transparent;
-  border:1px solid #ccc;border-radius:12px;margin:10px;
-}
-.controls{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:10px;}
-label{font-size:13px;}
-select,input[type=range]{margin:4px;padding:4px;border-radius:6px;}
-button{padding:8px 12px;border-radius:8px;border:none;background:#06b6d4;color:#fff;font-weight:700;cursor:pointer;}
+  body{margin:0;background:#fff;color:#222;font-family:"Noto Sans KR",system-ui,sans-serif;text-align:center}
+  canvas{width:512px;height:512px;background:transparent;border:1px solid #ddd;border-radius:12px;margin:12px}
+  .controls{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:10px}
+  label{font-size:13px}
+  select,input[type=range]{margin:4px;padding:4px;border-radius:6px}
+  button{padding:8px 12px;border-radius:8px;border:none;background:#06b6d4;color:#fff;font-weight:700;cursor:pointer}
 </style>
 </head>
 <body>
-<h1>🧍 AI 캐릭터 포즈 생성기 v9.5</h1>
+<h1>🧍 AI 캐릭터 포즈 생성기 v10.9</h1>
 <div class="controls">
   <label>등신
     <select id="ratio">
       <option value="1">1등신</option>
       <option value="1.5">1.5등신</option>
-      <option value="2">2등신</option>
+      <option value="2" selected>2등신</option>
       <option value="2.5">2.5등신</option>
       <option value="3">3등신</option>
     </select>
@@ -50,128 +41,197 @@ button{padding:8px 12px;border-radius:8px;border:none;background:#06b6d4;color:#
   <label>오른팔 각도<input type="range" id="rArm" min="-180" max="180" value="20"></label>
   <label>왼다리 각도<input type="range" id="lLeg" min="-180" max="180" value="10"></label>
   <label>오른다리 각도<input type="range" id="rLeg" min="-180" max="180" value="-10"></label>
-  <label>머리 기울기<input type="range" id="headTilt" min="-45" max="45" value="0"></label>
-  <label>몸 기울기<input type="range" id="bodyTilt" min="-45" max="45" value="0"></label>
+  <label>머리 각도<input type="range" id="headTilt" min="-180" max="180" value="0"></label>
+  <label>표정 각도<input type="range" id="faceAngle" min="-180" max="180" value="0"></label>
+  <label>몸 각도<input type="range" id="bodyTilt" min="-180" max="180" value="0"></label>
   <label>선 두께<input type="range" id="lw" min="6" max="24" value="12"></label>
   <label>속도<input type="range" id="speed" min="0.2" max="3" step="0.1" value="1"></label>
+  <label>전체 스케일<input type="range" id="gScale" min="0.6" max="1.0" step="0.01" value="0.85"></label>
+  <label>자동 맞춤 <input type="checkbox" id="autoFit"></label>
 </div>
 <div>
-  <button id="rotateBtn">360° 회전 ▶</button>
+  <button id=\"rotateBtn\">360° 회전 ▶</button>
   <button id="saveBtn">PNG 저장</button>
 </div>
 <canvas id="cv" width="1024" height="1024"></canvas>
 
 <script>
-const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
+const TAU=Math.PI*2; const deg=d=>d*Math.PI/180;
 
-function deg(d){return d*Math.PI/180;}
-function rnd(n){return Math.random()*n;}
+// --- 정확한 등신 비율 계산 ---
+// 총키 = 등신값 × 머리지름 을 항상 만족 (스케일은 별도로 곱해짐)
+function computeProportions(headsTall){
+  const desiredTotal = 600;                 // 기준 총키(px) — 스케일로 축소/확대
+  const headR = desiredTotal / (2*headsTall);// 머리 반지름
+  const headD = headR*2;                     // 머리지름
+  const total = headsTall * headD;           // 실제 총키(검증)
+  const bodyH = Math.max(total - headD, 0);  // 몸통 높이 (1등신이면 0)
+  return {headR, headD, bodyH, total};
+}
+
+function getPerspective(view, p){
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  p = clamp(p, 0.1, 0.8);
+  let shearY=0, scaleY=1, y=0;
+  let headScale=1, armScaleL=1, armScaleR=1, legScaleL=1, legScaleR=1;
+  if(view==='front'){
+    // neutral
+  } else if(view==='top'){
+    shearY = -0.9*p;                // 위에서 내려다보는 기울기
+    scaleY = 1 - 0.45*p;            // 세로 단축 (foreshortening)
+    y      = 120;                    // 살짝 아래로 내림
+    headScale = 1 + 0.14*p;         // 머리 커짐(가까움)
+    armScaleL = armScaleR = 1.0;    // 팔은 거의 동일
+    legScaleL = legScaleR = 0.85;   // 다리 짧아보임
+  } else if(view==='bottom'){
+    shearY = 1.2*p;                 // 아래에서 올려다보는 기울기
+    scaleY = 1 + 0.55*p;            // 세로 확장 (과장)
+    y      = -180;                   // 위로 올림(프레임 안착)
+    headScale = Math.max(0.8, 1 - 0.18*p); // 머리 작아짐(원근)
+    armScaleL = armScaleR = 1 + 0.12*p;
+    legScaleL = legScaleR = 1 + 0.38*p;    // 다리 길어짐
+  } else if(view==='left'){
+    shearY = 0.15*p;                // 약간의 상하 기울기
+    headScale = 1;
+    armScaleL = 1 + 0.18*p;         // 왼쪽(가까움) 팔
+    armScaleR = 1 - 0.12*p;         // 오른쪽(멀어짐) 팔
+    legScaleL = 1 + 0.22*p;         // 왼쪽 다리
+    legScaleR = 1 - 0.15*p;         // 오른쪽 다리
+  } else if(view==='right'){
+    shearY = -0.15*p;
+    headScale = 1;
+    armScaleL = 1 - 0.12*p;         // 왼쪽(멀어짐)
+    armScaleR = 1 + 0.18*p;         // 오른쪽(가까움)
+    legScaleL = 1 - 0.15*p;
+    legScaleR = 1 + 0.22*p;
+  }
+  return {shearY, scaleY, y, headScale, armScaleL, armScaleR, legScaleL, legScaleR};
+}
+
+function drawFaceSmileDots(r){
+  // 😊 점 눈 + 미소 (눈은 채움, 입은 선)
+  ctx.save();
+  ctx.beginPath();
+  // 눈: 채운 원
+  ctx.moveTo(0,0); // Safari fill bug guard
+  ctx.fillStyle = '#000';
+  for(const s of [-1,1]){
+    ctx.beginPath();
+    ctx.arc(s*r*0.18, -r*0.06, r*0.06, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // 입: 부드러운 아치(선)
+  ctx.beginPath();
+  ctx.moveTo(-r*0.24, r*0.26);
+  ctx.quadraticCurveTo(0, r*0.38, r*0.24, r*0.26);
+  ctx.stroke();
+  ctx.restore();
+}{
+  // 😊 기본 웃는 표정: 반달 눈 + 미소 곡선
+  ctx.beginPath();
+  // 눈 (반달)
+  for(const s of[-1,1]){
+    ctx.arc(s*r*0.22, -r*0.10, r*0.08, Math.PI, 0, true);
+  }
+  // 입 (부드러운 아치)
+  ctx.moveTo(-r*0.22, r*0.26);
+  ctx.quadraticCurveTo(0, r*0.38, r*0.22, r*0.26);
+  ctx.stroke();
+}
+
+function getAutoScale(view,p){
+  // 경험적 오토 스케일: 투시 강도와 시점별 여백 확보
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  let base=0.9;
+  if(view==='front') return clamp(base-0.02,0.6,0.95);
+  if(view==='left' || view==='right') return clamp(base - (0.18 + 0.5*(p-0.1)),0.6,0.9);
+  if(view==='top' || view==='bottom') return clamp(base - (0.22 + 0.7*(p-0.1)),0.6,0.88);
+  return clamp(0.85,0.6,0.95);
+}
 
 function drawCharacter(){
-  const ratio=parseFloat($('ratio').value);
+  const headsTall=parseFloat($('ratio').value);
+  const {headR, headD, bodyH}=computeProportions(headsTall);
   const lw=parseFloat($('lw').value);
-  const persp=parseFloat($('persp').value);
+  const p=parseFloat($('persp').value);
   const view=$('view').value;
-  const lArm=parseFloat($('lArm').value);
-  const rArm=parseFloat($('rArm').value);
-  const lLeg=parseFloat($('lLeg').value);
-  const rLeg=parseFloat($('rLeg').value);
-  const headTilt=parseFloat($('headTilt').value);
-  const bodyTilt=parseFloat($('bodyTilt').value);
-  const headRatio={1:1,1.5:1.3,2:1.7,2.5:2.1,3:2.5}[ratio];
-  const base=180;
+  const lArm=parseFloat($('lArm').value); const rArm=parseFloat($('rArm').value);
+  const lLeg=parseFloat($('lLeg').value); const rLeg=parseFloat($('rLeg').value);
+  const headTilt=parseFloat($('headTilt').value); const bodyTilt=parseFloat($('bodyTilt').value);
+  const faceAngle=parseFloat($('faceAngle').value);
+  const autoFitEl=$('autoFit');
+  const userScale=parseFloat($('gScale').value)||0.85;
+  let s=(autoFitEl && autoFitEl.checked) ? getAutoScale(view,p) : userScale;
+
   ctx.clearRect(0,0,cv.width,cv.height);
   ctx.save();
-  ctx.translate(512,600);
-  ctx.lineWidth=lw;
-  ctx.strokeStyle="#000";
-  ctx.lineCap="round";
-  ctx.lineJoin="round";
-  // pseudo 3D
-  if(view==="top") ctx.transform(1, -persp, 0, 1-persp, 0, 100);
-  if(view==="bottom") ctx.transform(1, persp, 0, 1+persp, 0, -100);
-  if(view==="left") ctx.transform(1-persp, 0, 0, 1, 100, 0);
-  if(view==="right") ctx.transform(1-persp, 0, 0, 1, -100, 0);
+  ctx.translate(512, 620);
+  ctx.scale(s, s);
+  ctx.lineWidth=lw; ctx.strokeStyle='#000'; ctx.lineCap='round'; ctx.lineJoin='round';
 
+  // 전문 원근 파라미터 계산 + 적용
+  const persp = getPerspective(view, p);
+  ctx.transform(1, persp.shearY, 0, persp.scaleY, 0, persp.y);
   ctx.rotate(deg(bodyTilt));
-  const bodyH=base*headRatio;
-  const headR=base*0.5;
-  // body
-  ctx.beginPath();
-  ctx.ellipse(0,0,headR*0.8,bodyH*0.6,0,0,Math.PI*2);
-  ctx.stroke();
 
-  // limbs
-  function limb(x,y,len,ang){
-    ctx.save();
-    ctx.translate(x,y);
-    ctx.rotate(deg(ang));
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.quadraticCurveTo(0,len*0.3,0,len);
-    ctx.stroke();
-    ctx.restore();
-  }
-  limb(-headR*0.9,-bodyH*0.2,bodyH*0.9,lArm);
-  limb(headR*0.9,-bodyH*0.2,bodyH*0.9,rArm);
-  limb(-headR*0.4,bodyH*0.6,bodyH*0.9,lLeg);
-  limb(headR*0.4,bodyH*0.6,bodyH*0.9,rLeg);
+  // ===== 몸통 =====
+  const hasBody = bodyH > 0.0001;
+  const bodyRy = hasBody ? bodyH/2 : 0;
+  const bodyRx = hasBody ? headR*0.9 : 0;
+  if(hasBody){ ctx.beginPath(); ctx.ellipse(0, 0, bodyRx, bodyRy, 0, 0, Math.PI*2); ctx.stroke(); }
 
-  // head
-  ctx.save();
-  ctx.translate(0,-bodyH*0.9);
-  ctx.rotate(deg(headTilt));
-  ctx.beginPath();
-  ctx.arc(0,0,headR,0,Math.PI*2);
-  ctx.stroke();
-  // face
-  ctx.beginPath();
-  ctx.moveTo(-headR*0.3,0);
-  ctx.lineTo(-headR*0.1,0);
-  ctx.moveTo(headR*0.3,0);
-  ctx.lineTo(headR*0.1,0);
-  ctx.moveTo(-headR*0.2,headR*0.3);
-  ctx.quadraticCurveTo(0,headR*0.5,headR*0.2,headR*0.3);
-  ctx.stroke();
+  // ===== 팔다리 길이 (등신 + 원근 반영) =====
+  let limbBase;
+  if(headsTall<=1){      limbBase=headR*0.70; }
+  else if(headsTall<=1.5){limbBase=headR*0.95; }
+  else if(headsTall<=2){  limbBase=headR*1.25; }
+  else if(headsTall<=2.5){limbBase=headR*1.50; }
+  else {                  limbBase=headR*1.70; }
+
+  function limb(x,y,len,ang){ ctx.save(); ctx.translate(x,y); ctx.rotate(deg(ang)); ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(0,len*0.35,0,len); ctx.stroke(); ctx.restore(); }
+
+  const armAnchorY = hasBody ? -bodyRy*0.35 : -headR*0.05;
+  const armAnchorX = hasBody ? bodyRx*1.05 : headR*0.9;
+  const legAnchorY = hasBody ? bodyRy*0.95 : headR*0.92;
+  const legAnchorX = hasBody ? bodyRx*0.5  : headR*0.45;
+
+  limb(-armAnchorX, armAnchorY, limbBase*0.9*persp.armScaleL, lArm);
+  limb( armAnchorX, armAnchorY, limbBase*0.9*persp.armScaleR, rArm);
+  limb(-legAnchorX, legAnchorY, limbBase*persp.legScaleL, lLeg);
+  limb( legAnchorX, legAnchorY, limbBase*persp.legScaleR, rLeg);
+
+  // ===== 머리 (목 간격 없음) =====
+  const headY = hasBody ? -bodyRy - headR : -headR*0.02;
+  const rHead = headR * persp.headScale; // 원근에 따른 머리 크기 보정
+  ctx.save(); ctx.translate(0, headY); ctx.rotate(deg(headTilt));
+  ctx.beginPath(); ctx.arc(0,0, rHead, 0, Math.PI*2); ctx.stroke();
+  ctx.save(); ctx.rotate(deg(faceAngle)); drawFaceSmileDots(rHead); ctx.restore();
   ctx.restore();
 
   ctx.restore();
 }
 
-['ratio','persp','view','lArm','rArm','lLeg','rLeg','headTilt','bodyTilt','lw'].forEach(id=>{
-  $(id).addEventListener('input',drawCharacter);
-});
+['ratio','persp','view','lArm','rArm','lLeg','rLeg','headTilt','bodyTilt','lw','gScale','faceAngle','autoFit'].forEach(id=>$(id).addEventListener('input',drawCharacter));
 
-drawCharacter();
+// gScale 비활성화 토글
+const __auto=$('autoFit'), __gs=$('gScale');
+if(__auto && __gs){ const sync=()=>{ __gs.disabled = __auto.checked; }; __auto.addEventListener('change',()=>{ sync(); drawCharacter(); }); sync(); }
 
-// rotation animation
-let running=false,angle=0,animID;
-$('rotateBtn').onclick=()=>{
-  if(running){cancelAnimationFrame(animID);running=false;$('rotateBtn').textContent='360° 회전 ▶';return;}
-  running=true;$('rotateBtn').textContent='정지 ⏸';
-  function spin(){
-    angle=(angle+parseFloat($('speed').value))%360;
-    ctx.save();
-    ctx.clearRect(0,0,cv.width,cv.height);
-    ctx.translate(512,512);
-    ctx.rotate(deg(angle));
-    ctx.translate(-512,-512);
-    drawCharacter();
-    ctx.restore();
-    animID=requestAnimationFrame(spin);
-  }
+// 360° 회전 애니메이션 (장면 회전)
+let running=false, angle=0, animID; $('rotateBtn').onclick=()=>{
+  if(running){ cancelAnimationFrame(animID); running=false; $('rotateBtn').textContent='360° 회전 ▶'; return; }
+  running=true; $('rotateBtn').textContent='정지 ⏸';
+  function spin(){ angle=(angle+parseFloat($('speed').value))%360; ctx.save(); ctx.clearRect(0,0,cv.width,cv.height); ctx.translate(512,512); ctx.rotate(deg(angle)); ctx.translate(-512,-512); drawCharacter(); ctx.restore(); animID=requestAnimationFrame(spin); }
   spin();
 };
 
-// save png
-$('saveBtn').onclick=()=>{
-  drawCharacter();
-  const a=document.createElement('a');
-  a.download='character_'+Math.floor(rnd(9999))+'.png';
-  a.href=cv.toDataURL('image/png');
-  a.click();
-};
+// PNG 저장
+$('saveBtn').onclick=()=>{ drawCharacter(); const a=document.createElement('a'); a.download='character_'+Math.floor(Math.random()*9999)+'.png'; a.href=cv.toDataURL('image/png'); a.click(); };
+
+// 초기 렌더
+drawCharacter();
 </script>
 </body>
 </html>
