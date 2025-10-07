@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🪄 AI 캐릭터 프롬프트 생성기 | 풀옵션 미니 앱</title>
+  <style>
+    :root{
+      --bg:#0f172a; --panel:#111827ee; --muted:#94a3b8; --text:#e5e7eb; --accent:#22d3ee; --border:#334155;
+    }
+    body{margin:0;padding:24px;font-family:ui-sans-serif,system-ui,'Noto Sans KR';background:var(--bg);color:var(--text);}
+    .container{max-width:1200px;margin:auto;}
+    .title{font-size:28px;font-weight:800;margin-bottom:4px}
+    .subtitle{color:var(--muted)}
+    .grid{display:grid;gap:16px;margin-top:18px;grid-template-columns:1fr;}
+    @media(min-width:960px){.grid{grid-template-columns:1fr 1fr}}
+    .card{background:linear-gradient(180deg,#0b1220,var(--panel));border:1px solid var(--border);border-radius:16px;padding:16px;}
+    label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+    input,textarea,select{width:100%;padding:10px;border-radius:8px;background:#0b1220;border:1px solid var(--border);color:var(--text)}
+    textarea{min-height:80px;resize:vertical}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+    .chip{background:#1f2937;color:#e2e8f0;border:1px solid var(--border);padding:6px 10px;border-radius:999px;font-size:12px;cursor:pointer}
+    button{padding:10px 16px;border:none;border-radius:10px;cursor:pointer;font-weight:700}
+    .primary{background:linear-gradient(180deg,#22d3ee,#06b6d4);color:#05252d}
+    .secondary{background:#0b1220;color:#e2e8f0;border:1px solid var(--border)}
+    canvas{width:100%;max-height:480px;background:#0b1220;border-radius:12px;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">🪄 AI 캐릭터 프롬프트 생성기</div>
+    <div class="subtitle">헤어, 의상, 소품, 배경 등 모든 요소를 포함해 완전한 프롬프트를 자동 생성합니다.</div>
+
+    <div class="grid">
+      <section class="card">
+        <h3>입력값</h3>
+        <label>① 스타일</label>
+        <input id="style" placeholder="흑백 라인드로잉 / 수채화풍 등" />
+        <label>② 캐릭터 형태</label>
+        <input id="shape" placeholder="사람 / 동물 / 마스코트" />
+        <label>③ 등신 비율</label>
+        <input id="ratio" placeholder="1등신 / 1.5등신 / 2등신 등" />
+        <label>④ 시점(앵글)</label>
+        <input id="angle" placeholder="정면 / 45도 대각 / 위에서 본 시점" />
+        <label>⑤ 방향</label>
+        <input id="direction" placeholder="정면 / 측면 / 살짝 왼쪽 등" />
+        <label>⑥ 표정</label>
+        <input id="expression" placeholder="무표정 / 웃음 / 놀람 / 찡긋 등" />
+        <label>⑦ 포인트 요소</label>
+        <input id="points" placeholder="손으로 하트 포즈 / 팔 동세 강조 등" />
+        <label>⑧ 헤어스타일</label>
+        <input id="hair" placeholder="단발 / 포니테일 / 삐죽한 앞머리 등" />
+        <label>⑨ 의상</label>
+        <input id="clothes" placeholder="캐주얼 / 정장 / 교복 / 후드티 등" />
+        <label>⑩ 소품</label>
+        <input id="props" placeholder="안경 / 스마트폰 / 리본 / 머리띠 등" />
+        <label>⑪ 배경</label>
+        <input id="background" placeholder="단색 배경 / 교실 / 자연 풍경 등" />
+        <label>⑫ 용도</label>
+        <input id="usage" placeholder="이모티콘용 / 캐릭터 설정화용 / 포스터용" />
+        <div style="margin-top:12px" class="btns">
+          <button class="primary" id="genBtn">프롬프트 생성</button>
+          <button class="secondary" id="randBtn">랜덤 채우기</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>출력 및 미리보기</h3>
+        <textarea id="output" readonly placeholder="자동 생성된 프롬프트가 여기에 표시됩니다."></textarea>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="primary" id="copyBtn">복사</button>
+          <button class="secondary" id="pngTextBtn">텍스트 PNG</button>
+          <button class="secondary" id="drawBtn">미리보기 생성</button>
+          <button class="secondary" id="pngImgBtn">그림 PNG</button>
+        </div>
+        <canvas id="cv" width="1200" height="1200"></canvas>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const $=id=>document.getElementById(id);
+    const fields=['style','shape','ratio','angle','direction','expression','points','hair','clothes','props','background','usage'];
+    function assemble(){
+      const v=Object.fromEntries(fields.map(f=>[f,$(f).value.trim()]));
+      const parts=[];
+      if(v.style) parts.push(`${v.style} 스타일의`);
+      if(v.shape) parts.push(`${v.shape} 캐릭터`);
+      if(v.ratio) parts.push(`${v.ratio} 비율`);
+      let text=parts.join(' ') + '.';
+      if(v.angle||v.direction) text+=` ${v.angle||''} ${v.direction||''} 구도.`;
+      if(v.expression) text+=` ${v.expression} 표정.`;
+      if(v.points) text+=` ${v.points} 강조.`;
+      if(v.hair) text+=` 헤어스타일은 ${v.hair}.`;
+      if(v.clothes) text+=` 의상은 ${v.clothes}.`;
+      if(v.props) text+=` 소품으로는 ${v.props}.`;
+      if(v.background) text+=` 배경은 ${v.background}.`;
+      if(v.usage) text+=` ${v.usage} 참고 이미지로 사용.`;
+      $('output').value=text; return v;
+    }
+    $('genBtn').onclick=assemble;
+
+    $('copyBtn').onclick=()=>{navigator.clipboard.writeText($('output').value);alert('복사 완료!');};
+
+    // 랜덤 채우기
+    const pool={hair:['단발','포니테일','긴 생머리','묶은 머리','앞머리 있음'],clothes:['후드티','정장','교복','캐주얼','운동복'],props:['안경','리본','머리띠','스마트폰','책'],background:['단색 배경','자연 풍경','교실 내부','하늘 배경']};
+    $('randBtn').onclick=()=>{for(const k in pool){$(k).value=pool[k][Math.floor(Math.random()*pool[k].length)];}assemble();};
+
+    // 간단 미리보기
+    const cv=$('cv'); const ctx=cv.getContext('2d');
+    function draw(){ctx.clearRect(0,0,1200,1200);ctx.strokeStyle='#e5e7eb';ctx.lineWidth=6;ctx.beginPath();ctx.arc(600,400,100,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(600,500);ctx.lineTo(600,800);ctx.stroke();ctx.beginPath();ctx.moveTo(600,600);ctx.lineTo(500,700);ctx.moveTo(600,600);ctx.lineTo(700,700);ctx.moveTo(600,800);ctx.lineTo(550,950);ctx.moveTo(600,800);ctx.lineTo(650,950);ctx.stroke();ctx.font='24px sans-serif';ctx.fillStyle='#94a3b8';ctx.fillText('라인드로잉 예시',480,1100);} $('drawBtn').onclick=draw;
+    $('pngImgBtn').onclick=()=>{draw();const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download='drawing.png';a.click();}
+  </script>
+</body>
+</html>
