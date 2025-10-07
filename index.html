@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>AI 캐릭터 포즈 생성기 v10.9 — 점 눈 + 프로 투시</title>
+<title>AI 캐릭터 포즈 생성기 v10.9.1 — 점 눈 + 프로 투시 + 버그픽스</title>
 <style>
   body{margin:0;background:#fff;color:#222;font-family:"Noto Sans KR",system-ui,sans-serif;text-align:center}
   canvas{width:512px;height:512px;background:transparent;border:1px solid #ddd;border-radius:12px;margin:12px}
@@ -11,10 +11,13 @@
   label{font-size:13px}
   select,input[type=range]{margin:4px;padding:4px;border-radius:6px}
   button{padding:8px 12px;border-radius:8px;border:none;background:#06b6d4;color:#fff;font-weight:700;cursor:pointer}
+  .tests{margin:6px 0 14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .pass{color:#22c55e;font-weight:700}
+  .fail{color:#ef4444;font-weight:700}
 </style>
 </head>
 <body>
-<h1>🧍 AI 캐릭터 포즈 생성기 v10.9</h1>
+<h1>🧍 AI 캐릭터 포즈 생성기 v10.9.1</h1>
 <div class="controls">
   <label>등신
     <select id="ratio">
@@ -49,9 +52,10 @@
   <label>전체 스케일<input type="range" id="gScale" min="0.6" max="1.0" step="0.01" value="0.85"></label>
   <label>자동 맞춤 <input type="checkbox" id="autoFit"></label>
 </div>
-<div>
-  <button id=\"rotateBtn\">360° 회전 ▶</button>
+<div class="tests">
+  <button id="rotateBtn">360° 회전 ▶</button>
   <button id="saveBtn">PNG 저장</button>
+  <button id="selfTestBtn" title="간단한 런타임 테스트를 실행합니다">자가 테스트</button>
 </div>
 <canvas id="cv" width="1024" height="1024"></canvas>
 
@@ -59,6 +63,8 @@
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
 const TAU=Math.PI*2; const deg=d=>d*Math.PI/180;
+// 전역 장면 회전 각도(드로잉 내부에서 사용)
+let sceneAngleDeg = 0;
 
 // --- 정확한 등신 비율 계산 ---
 // 총키 = 등신값 × 머리지름 을 항상 만족 (스케일은 별도로 곱해짐)
@@ -71,6 +77,7 @@ function computeProportions(headsTall){
   return {headR, headD, bodyH, total};
 }
 
+// --- 전문 원근 파라미터 계산 ---
 function getPerspective(view, p){
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   p = clamp(p, 0.1, 0.8);
@@ -110,12 +117,10 @@ function getPerspective(view, p){
   return {shearY, scaleY, y, headScale, armScaleL, armScaleR, legScaleL, legScaleR};
 }
 
+// --- 기본 표정: 점 눈 + 미소 ---
 function drawFaceSmileDots(r){
-  // 😊 점 눈 + 미소 (눈은 채움, 입은 선)
   ctx.save();
-  ctx.beginPath();
   // 눈: 채운 원
-  ctx.moveTo(0,0); // Safari fill bug guard
   ctx.fillStyle = '#000';
   for(const s of [-1,1]){
     ctx.beginPath();
@@ -128,21 +133,10 @@ function drawFaceSmileDots(r){
   ctx.quadraticCurveTo(0, r*0.38, r*0.24, r*0.26);
   ctx.stroke();
   ctx.restore();
-}{
-  // 😊 기본 웃는 표정: 반달 눈 + 미소 곡선
-  ctx.beginPath();
-  // 눈 (반달)
-  for(const s of[-1,1]){
-    ctx.arc(s*r*0.22, -r*0.10, r*0.08, Math.PI, 0, true);
-  }
-  // 입 (부드러운 아치)
-  ctx.moveTo(-r*0.22, r*0.26);
-  ctx.quadraticCurveTo(0, r*0.38, r*0.22, r*0.26);
-  ctx.stroke();
 }
 
+// --- 자동 스케일 추정 ---
 function getAutoScale(view,p){
-  // 경험적 오토 스케일: 투시 강도와 시점별 여백 확보
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   let base=0.9;
   if(view==='front') return clamp(base-0.02,0.6,0.95);
@@ -151,6 +145,7 @@ function getAutoScale(view,p){
   return clamp(0.85,0.6,0.95);
 }
 
+// --- 메인 드로잉 ---
 function drawCharacter(){
   const headsTall=parseFloat($('ratio').value);
   const {headR, headD, bodyH}=computeProportions(headsTall);
@@ -165,8 +160,14 @@ function drawCharacter(){
   const userScale=parseFloat($('gScale').value)||0.85;
   let s=(autoFitEl && autoFitEl.checked) ? getAutoScale(view,p) : userScale;
 
+  ctx.setTransform(1,0,0,1,0,0);
   ctx.clearRect(0,0,cv.width,cv.height);
   ctx.save();
+  // 전체 장면 회전(중심 512,512 기준)
+  ctx.translate(512,512);
+  ctx.rotate(deg(sceneAngleDeg));
+  ctx.translate(-512,-512);
+  // 장면 기준에서 캐릭터 배치
   ctx.translate(512, 620);
   ctx.scale(s, s);
   ctx.lineWidth=lw; ctx.strokeStyle='#000'; ctx.lineCap='round'; ctx.lineJoin='round';
@@ -213,6 +214,7 @@ function drawCharacter(){
   ctx.restore();
 }
 
+// 이벤트 바인딩
 ['ratio','persp','view','lArm','rArm','lLeg','rLeg','headTilt','bodyTilt','lw','gScale','faceAngle','autoFit'].forEach(id=>$(id).addEventListener('input',drawCharacter));
 
 // gScale 비활성화 토글
@@ -220,15 +222,41 @@ const __auto=$('autoFit'), __gs=$('gScale');
 if(__auto && __gs){ const sync=()=>{ __gs.disabled = __auto.checked; }; __auto.addEventListener('change',()=>{ sync(); drawCharacter(); }); sync(); }
 
 // 360° 회전 애니메이션 (장면 회전)
-let running=false, angle=0, animID; $('rotateBtn').onclick=()=>{
+let running=false, animID; $('rotateBtn').onclick=()=>{
   if(running){ cancelAnimationFrame(animID); running=false; $('rotateBtn').textContent='360° 회전 ▶'; return; }
   running=true; $('rotateBtn').textContent='정지 ⏸';
-  function spin(){ angle=(angle+parseFloat($('speed').value))%360; ctx.save(); ctx.clearRect(0,0,cv.width,cv.height); ctx.translate(512,512); ctx.rotate(deg(angle)); ctx.translate(-512,-512); drawCharacter(); ctx.restore(); animID=requestAnimationFrame(spin); }
+  function spin(){
+    sceneAngleDeg = (sceneAngleDeg + parseFloat($('speed').value)) % 360;
+    drawCharacter();
+    animID = requestAnimationFrame(spin);
+  }
   spin();
 };
 
 // PNG 저장
 $('saveBtn').onclick=()=>{ drawCharacter(); const a=document.createElement('a'); a.download='character_'+Math.floor(Math.random()*9999)+'.png'; a.href=cv.toDataURL('image/png'); a.click(); };
+
+// --- 간단 자가 테스트 (테스트 케이스 추가) ---
+function runSelfTests(){
+  const results=[]; const ok=(name,cond)=>results.push({name,cond});
+  try{
+    // 등신/몸통 규칙
+    let p = computeProportions(1); ok('1등신: bodyH==0', Math.abs(p.bodyH-0)<1e-6);
+    p = computeProportions(2); ok('2등신: bodyH==headD', Math.abs(p.bodyH-p.headD)<1e-6);
+    p = computeProportions(3); ok('3등신: total==headsTall*headD', Math.abs(p.total-3*p.headD)<1e-6);
+    // 필수 함수 존재
+    ok('drawFaceSmileDots: function', typeof drawFaceSmileDots==='function');
+    // 퍼스펙티브 키
+    const keys=['shearY','scaleY','y','headScale','armScaleL','armScaleR','legScaleL','legScaleR'];
+    const ps=getPerspective('bottom',0.35); ok('getPerspective keys', keys.every(k=>k in ps));
+  }catch(e){ console.error(e); ok('런타임 예외 없음', false); }
+  const pass = results.filter(r=>r.cond).length;
+  const fail = results.length-pass;
+  const msg = `테스트: ${pass} passed / ${fail} failed`;
+  console.table(results);
+  alert(msg + (fail? '\n콘솔에서 실패 항목을 확인하세요.' : '\n모든 항목 통과!'));
+}
+$('selfTestBtn').onclick=runSelfTests;
 
 // 초기 렌더
 drawCharacter();
