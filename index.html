@@ -1,115 +1,171 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>🪄 AI 캐릭터 프롬프트 생성기 | 풀옵션 미니 앱</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>🪄 AI 캐릭터 포즈 생성기 v4.0</title>
   <style>
-    :root{
-      --bg:#0f172a; --panel:#111827ee; --muted:#94a3b8; --text:#e5e7eb; --accent:#22d3ee; --border:#334155;
-    }
-    body{margin:0;padding:24px;font-family:ui-sans-serif,system-ui,'Noto Sans KR';background:var(--bg);color:var(--text);}
-    .container{max-width:1200px;margin:auto;}
-    .title{font-size:28px;font-weight:800;margin-bottom:4px}
-    .subtitle{color:var(--muted)}
-    .grid{display:grid;gap:16px;margin-top:18px;grid-template-columns:1fr;}
-    @media(min-width:960px){.grid{grid-template-columns:1fr 1fr}}
-    .card{background:linear-gradient(180deg,#0b1220,var(--panel));border:1px solid var(--border);border-radius:16px;padding:16px;}
-    label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
-    input,textarea,select{width:100%;padding:10px;border-radius:8px;background:#0b1220;border:1px solid var(--border);color:var(--text)}
-    textarea{min-height:80px;resize:vertical}
-    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-    .chip{background:#1f2937;color:#e2e8f0;border:1px solid var(--border);padding:6px 10px;border-radius:999px;font-size:12px;cursor:pointer}
-    button{padding:10px 16px;border:none;border-radius:10px;cursor:pointer;font-weight:700}
-    .primary{background:linear-gradient(180deg,#22d3ee,#06b6d4);color:#05252d}
-    .secondary{background:#0b1220;color:#e2e8f0;border:1px solid var(--border)}
-    canvas{width:100%;max-height:480px;background:#0b1220;border-radius:12px;margin-top:8px}
+    body{margin:0;background:#0f172a;color:#fff;font-family:'Noto Sans KR',system-ui,sans-serif;text-align:center}
+    canvas{background:transparent;width:512px;height:512px;margin:16px;border-radius:12px}
+    select,input,button{margin:6px;padding:8px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#fff}
+    button{cursor:pointer;background:linear-gradient(180deg,#22d3ee,#06b6d4);border:none;font-weight:700;color:#05252d}
+    .wrap{max-width:1100px;margin:auto;padding:16px}
+    .ctl{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:8px}
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="title">🪄 AI 캐릭터 프롬프트 생성기</div>
-    <div class="subtitle">헤어, 의상, 소품, 배경 등 모든 요소를 포함해 완전한 프롬프트를 자동 생성합니다.</div>
-
-    <div class="grid">
-      <section class="card">
-        <h3>입력값</h3>
-        <label>① 스타일</label>
-        <input id="style" placeholder="흑백 라인드로잉 / 수채화풍 등" />
-        <label>② 캐릭터 형태</label>
-        <input id="shape" placeholder="사람 / 동물 / 마스코트" />
-        <label>③ 등신 비율</label>
-        <input id="ratio" placeholder="1등신 / 1.5등신 / 2등신 등" />
-        <label>④ 시점(앵글)</label>
-        <input id="angle" placeholder="정면 / 45도 대각 / 위에서 본 시점" />
-        <label>⑤ 방향</label>
-        <input id="direction" placeholder="정면 / 측면 / 살짝 왼쪽 등" />
-        <label>⑥ 표정</label>
-        <input id="expression" placeholder="무표정 / 웃음 / 놀람 / 찡긋 등" />
-        <label>⑦ 포인트 요소</label>
-        <input id="points" placeholder="손으로 하트 포즈 / 팔 동세 강조 등" />
-        <label>⑧ 헤어스타일</label>
-        <input id="hair" placeholder="단발 / 포니테일 / 삐죽한 앞머리 등" />
-        <label>⑨ 의상</label>
-        <input id="clothes" placeholder="캐주얼 / 정장 / 교복 / 후드티 등" />
-        <label>⑩ 소품</label>
-        <input id="props" placeholder="안경 / 스마트폰 / 리본 / 머리띠 등" />
-        <label>⑪ 배경</label>
-        <input id="background" placeholder="단색 배경 / 교실 / 자연 풍경 등" />
-        <label>⑫ 용도</label>
-        <input id="usage" placeholder="이모티콘용 / 캐릭터 설정화용 / 포스터용" />
-        <div style="margin-top:12px" class="btns">
-          <button class="primary" id="genBtn">프롬프트 생성</button>
-          <button class="secondary" id="randBtn">랜덤 채우기</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h3>출력 및 미리보기</h3>
-        <textarea id="output" readonly placeholder="자동 생성된 프롬프트가 여기에 표시됩니다."></textarea>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="primary" id="copyBtn">복사</button>
-          <button class="secondary" id="pngTextBtn">텍스트 PNG</button>
-          <button class="secondary" id="drawBtn">미리보기 생성</button>
-          <button class="secondary" id="pngImgBtn">그림 PNG</button>
-        </div>
-        <canvas id="cv" width="1200" height="1200"></canvas>
-      </section>
+  <div class="wrap">
+    <h1>🧍 AI 캐릭터 포즈 생성기 v4.0</h1>
+    <div class="ctl">
+      <label>머리형</label>
+      <select id="headType">
+        <option>곰돌이</option><option>고양이</option><option>강아지</option>
+        <option>펭귄</option><option>오리</option><option>기린</option>
+        <option>카피바라</option><option>양갈래머리 여자</option>
+        <option>스포츠머리 남자</option><option>긴머리 여성</option>
+      </select>
+      <label>표정</label>
+      <select id="faceType">
+        <option>웃음</option><option>울음</option><option>하트눈</option><option>별눈</option>
+        <option>선글라스</option><option>분노</option><option>코믹</option>
+        <option>해골</option><option>X눈</option><option>생각</option>
+      </select>
+      <label>선 스타일</label>
+      <select id="lineStyle">
+        <option value="normal">기본</option>
+        <option value="wobbly">찌글찌글</option>
+        <option value="pixel">픽셀</option>
+        <option value="fuzzy">복실복실</option>
+      </select>
+      <label>선두께</label>
+      <input type="range" id="lw" min="8" max="24" value="12"/>
+      <label>팔 각도</label><input type="range" id="armAngle" min="-180" max="180" value="0"/>
+      <label>다리 각도</label><input type="range" id="legAngle" min="0" max="360" value="30"/>
+      <label>몸 기울기</label><input type="range" id="bodyTilt" min="-45" max="45" value="0"/>
+      <label>머리 기울기</label><input type="range" id="headTilt" min="-45" max="45" value="0"/>
     </div>
+    <button id="saveBtn">PNG 저장</button>
+    <canvas id="cv" width="1024" height="1024"></canvas>
   </div>
 
   <script>
-    const $=id=>document.getElementById(id);
-    const fields=['style','shape','ratio','angle','direction','expression','points','hair','clothes','props','background','usage'];
-    function assemble(){
-      const v=Object.fromEntries(fields.map(f=>[f,$(f).value.trim()]));
-      const parts=[];
-      if(v.style) parts.push(`${v.style} 스타일의`);
-      if(v.shape) parts.push(`${v.shape} 캐릭터`);
-      if(v.ratio) parts.push(`${v.ratio} 비율`);
-      let text=parts.join(' ') + '.';
-      if(v.angle||v.direction) text+=` ${v.angle||''} ${v.direction||''} 구도.`;
-      if(v.expression) text+=` ${v.expression} 표정.`;
-      if(v.points) text+=` ${v.points} 강조.`;
-      if(v.hair) text+=` 헤어스타일은 ${v.hair}.`;
-      if(v.clothes) text+=` 의상은 ${v.clothes}.`;
-      if(v.props) text+=` 소품으로는 ${v.props}.`;
-      if(v.background) text+=` 배경은 ${v.background}.`;
-      if(v.usage) text+=` ${v.usage} 참고 이미지로 사용.`;
-      $('output').value=text; return v;
+  const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+  const $=id=>document.getElementById(id);
+
+  function deg2rad(d){return d*Math.PI/180;}
+
+  function applyLineStyle(style){
+    ctx.setLineDash([]);ctx.lineJoin='round';ctx.lineCap='round';
+    ctx.imageSmoothingEnabled=true;
+    if(style==="pixel"){ctx.imageSmoothingEnabled=false;}
+  }
+
+  function strokePath(style, drawFn){
+    if(style==='wobbly'){
+      for(let i=0;i<2;i++){ctx.save();ctx.translate(Math.random()*2-1,Math.random()*2-1);drawFn();ctx.stroke();ctx.restore();}
+    }else if(style==='fuzzy'){
+      for(let i=0;i<5;i++){ctx.save();ctx.translate(Math.random()*2-1,Math.random()*2-1);ctx.globalAlpha=0.25;drawFn();ctx.stroke();ctx.restore();}
+      ctx.globalAlpha=1;
+    }else{drawFn();ctx.stroke();}
+  }
+
+  function drawHeadShape(type,r){
+    ctx.beginPath();
+    if(type==='곰돌이'){
+      ctx.arc(-r*0.6,-r*0.7,r*0.3,0,Math.PI*2);
+      ctx.arc(r*0.6,-r*0.7,r*0.3,0,Math.PI*2);
     }
-    $('genBtn').onclick=assemble;
+    ctx.beginPath();
+    if(['곰돌이','카피바라','강아지','고양이'].includes(type))
+      ctx.ellipse(0,0,r*1.1,r*1.0,0,0,Math.PI*2);
+    if(type==='펭귄') ctx.ellipse(0,0,r*1.0,r*1.2,0,0,Math.PI*2);
+    if(type==='기린'){ctx.ellipse(0,0,r*0.9,r*1.3,0,0,Math.PI*2);
+      ctx.moveTo(-r*0.3,-r*1.3);ctx.lineTo(-r*0.2,-r*1.6);
+      ctx.moveTo(r*0.3,-r*1.3);ctx.lineTo(r*0.2,-r*1.6);}
+    if(type==='오리'){ctx.ellipse(0,0,r*1.0,r*0.9,0,0,Math.PI*2);
+      ctx.moveTo(-r*0.4,r*0.4);ctx.quadraticCurveTo(0,r*0.7,r*0.4,r*0.4);}
+    if(type==='양갈래머리 여자'){ctx.ellipse(0,0,r*1.0,r*1.0,0,0,Math.PI*2);
+      ctx.arc(-r*0.9,-r*0.6,r*0.3,0,Math.PI*2);
+      ctx.arc(r*0.9,-r*0.6,r*0.3,0,Math.PI*2);}
+    if(type==='스포츠머리 남자'){ctx.moveTo(-r,0);ctx.quadraticCurveTo(0,-r*1.2,r,0);ctx.lineTo(-r,0);}
+    if(type==='긴머리 여성'){ctx.moveTo(-r,0);ctx.quadraticCurveTo(-r*1.1,r*1.5,0,r*1.6);
+      ctx.quadraticCurveTo(r*1.1,r*1.5,r,0);}
+    ctx.stroke();
+  }
 
-    $('copyBtn').onclick=()=>{navigator.clipboard.writeText($('output').value);alert('복사 완료!');};
+  function drawFace(type,r){
+    ctx.beginPath();
+    if(type==='웃음'){ctx.arc(0,r*0.2,r*0.3,0,Math.PI,false);}
+    if(type==='울음'){ctx.moveTo(-r*0.1,-r*0.1);ctx.lineTo(-r*0.1,r*0.3);ctx.moveTo(r*0.1,-r*0.1);ctx.lineTo(r*0.1,r*0.3);}
+    if(type==='하트눈'){ctx.moveTo(-r*0.3,-r*0.3);ctx.bezierCurveTo(-r*0.45,-r*0.5,-r*0.1,-r*0.6,-r*0.3,-r*0.3);
+                        ctx.moveTo(r*0.3,-r*0.3);ctx.bezierCurveTo(r*0.45,-r*0.5,r*0.1,-r*0.6,r*0.3,-r*0.3);}
+    if(type==='별눈'){for(let side of[-1,1]){ctx.save();ctx.translate(side*r*0.2,-r*0.2);
+      for(let i=0;i<5;i++){ctx.lineTo(Math.cos((18+i*72)*Math.PI/180)*r*0.15,Math.sin((18+i*72)*Math.PI/180)*r*0.15);}ctx.restore();}}
+    if(type==='선글라스'){ctx.rect(-r*0.4,-r*0.2,r*0.25,r*0.15);ctx.rect(r*0.15,-r*0.2,r*0.25,r*0.15);}
+    if(type==='분노'){ctx.moveTo(-r*0.2,-r*0.3);ctx.lineTo(-r*0.1,-r*0.2);ctx.moveTo(r*0.2,-r*0.3);ctx.lineTo(r*0.1,-r*0.2);}
+    if(type==='코믹'){ctx.moveTo(-r*0.1,0);ctx.lineTo(r*0.1,0);ctx.moveTo(0,0);ctx.lineTo(0,r*0.2);}
+    if(type==='해골'){ctx.arc(0,0,r*0.3,0,Math.PI*2);for(let i=-2;i<=2;i++){ctx.moveTo(i*r*0.05,r*0.3);ctx.lineTo(i*r*0.05,r*0.35);}}
+    if(type==='X눈'){ctx.moveTo(-r*0.3,-r*0.2);ctx.lineTo(-r*0.1,0);ctx.moveTo(-r*0.1,-r*0.2);ctx.lineTo(-r*0.3,0);
+                     ctx.moveTo(r*0.3,-r*0.2);ctx.lineTo(r*0.1,0);ctx.moveTo(r*0.1,-r*0.2);ctx.lineTo(r*0.3,0);}
+    if(type==='생각'){ctx.arc(-r*0.2,-r*0.2,r*0.05,0,Math.PI*2);ctx.arc(r*0.2,-r*0.2,r*0.05,0,Math.PI*2);}
+    ctx.stroke();
+  }
 
-    // 랜덤 채우기
-    const pool={hair:['단발','포니테일','긴 생머리','묶은 머리','앞머리 있음'],clothes:['후드티','정장','교복','캐주얼','운동복'],props:['안경','리본','머리띠','스마트폰','책'],background:['단색 배경','자연 풍경','교실 내부','하늘 배경']};
-    $('randBtn').onclick=()=>{for(const k in pool){$(k).value=pool[k][Math.floor(Math.random()*pool[k].length)];}assemble();};
+  function drawBody(lw,armA,legA,bodyTilt,headTilt,headR,style){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    applyLineStyle(style);
+    ctx.lineWidth=lw;ctx.strokeStyle='#000';
+    const cx=512,cy=580;
+    const bodyR=headR;
+    ctx.save();ctx.translate(cx,cy);ctx.rotate(deg2rad(bodyTilt));
+    strokePath(style,()=>{ctx.beginPath();ctx.ellipse(0,0,bodyR*0.8,bodyR*1.0,0,0,Math.PI*2);});
+    drawLimb(-bodyR*0.8,-bodyR*0.2,armA,-1,bodyR,style);
+    drawLimb(bodyR*0.8,-bodyR*0.2,-armA,1,bodyR,style);
+    drawLeg(-bodyR*0.4,bodyR*0.9,legA,-1,bodyR,style);
+    drawLeg(bodyR*0.4,bodyR*0.9,legA,1,bodyR,style);
+    ctx.restore();
+    ctx.save();ctx.translate(cx,cy-bodyR*1.3);ctx.rotate(deg2rad(headTilt));
+    strokePath(style,()=>drawHeadShape($('headType').value,headR));
+    drawFace($('faceType').value,headR);
+    ctx.restore();
+  }
 
-    // 간단 미리보기
-    const cv=$('cv'); const ctx=cv.getContext('2d');
-    function draw(){ctx.clearRect(0,0,1200,1200);ctx.strokeStyle='#e5e7eb';ctx.lineWidth=6;ctx.beginPath();ctx.arc(600,400,100,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(600,500);ctx.lineTo(600,800);ctx.stroke();ctx.beginPath();ctx.moveTo(600,600);ctx.lineTo(500,700);ctx.moveTo(600,600);ctx.lineTo(700,700);ctx.moveTo(600,800);ctx.lineTo(550,950);ctx.moveTo(600,800);ctx.lineTo(650,950);ctx.stroke();ctx.font='24px sans-serif';ctx.fillStyle='#94a3b8';ctx.fillText('라인드로잉 예시',480,1100);} $('drawBtn').onclick=draw;
-    $('pngImgBtn').onclick=()=>{draw();const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download='drawing.png';a.click();}
+  function drawLimb(x,y,angle,dir,r,style){
+    ctx.save();ctx.translate(x,y);ctx.rotate(deg2rad(angle)*dir);
+    strokePath(style,()=>{ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(dir*r*0.3,r*0.3,dir*r*0.5,r*0.9);ctx.quadraticCurveTo(dir*r*0.25,r*0.5,0,0);});
+    ctx.restore();
+  }
+
+  function drawLeg(x,y,angle,dir,r,style){
+    ctx.save();ctx.translate(x,y);ctx.rotate(deg2rad(angle)*dir);
+    strokePath(style,()=>{ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(dir*r*0.3,r*0.4,dir*r*0.1,r*0.9);ctx.quadraticCurveTo(dir*r*0.2,r*0.6,0,0);});
+    ctx.restore();
+  }
+
+  function randomName(){
+    const heads=['bear','cat','dog','penguin','duck','giraffe','capybara','twintail','shortman','longhair'];
+    const faces=['smile','cry','heart','star','sunglass','angry','comic','skull','xeye','think'];
+    return heads[Math.floor(Math.random()*heads.length)]+'_'+faces[Math.floor(Math.random()*faces.length)]+'_pose.png';
+  }
+
+  function drawAll(){
+    drawBody(parseInt($('lw').value),parseFloat($('armAngle').value),parseFloat($('legAngle').value),
+      parseFloat($('bodyTilt').value),parseFloat($('headTilt').value),180,$('lineStyle').value);
+  }
+
+  ['lw','armAngle','legAngle','bodyTilt','headTilt','headType','faceType','lineStyle'].forEach(id=>{
+    $(id).addEventListener('input',drawAll);
+  });
+
+  $('saveBtn').onclick=()=>{
+    drawAll();
+    const a=document.createElement('a');
+    a.href=cv.toDataURL('image/png');
+    a.download=randomName();
+    a.click();
+  };
+
+  drawAll();
   </script>
 </body>
 </html>
